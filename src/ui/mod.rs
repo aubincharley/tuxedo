@@ -29,8 +29,32 @@ pub mod welcome;
 // `MIN_BODY_W` references below stay in sync, and so tweaking a sidebar
 // width is a one-line change.
 const LEFT_PANE_W: u16 = 26;
-const RIGHT_PANE_W: u16 = 34;
 const MIN_BODY_W: u16 = 40;
+
+// The detail pane scales with the terminal: a 200-column window has room to
+// show a task's metadata without wrapping, an 80-column one does not. The
+// floor is the width the pane had when it was a fixed constant, so no terminal
+// gets a *narrower* detail pane than before.
+const RIGHT_PANE_MIN_W: u16 = 34;
+const RIGHT_PANE_MAX_W: u16 = 64;
+/// Share of the terminal the detail pane targets, in tenths.
+const RIGHT_PANE_TENTHS: u32 = 3;
+
+/// Detail-pane width for a `total`-column terminal, given the columns the left
+/// sidebar has already claimed.
+///
+/// Targets [`RIGHT_PANE_TENTHS`] of the width, clamped to
+/// `RIGHT_PANE_MIN_W..=RIGHT_PANE_MAX_W`, then capped so the task list keeps at
+/// least [`MIN_BODY_W`] columns. On a narrow terminal the cap wins and the pane
+/// gives ground rather than squeezing the list — which is the behaviour the
+/// `Constraint::Min(MIN_BODY_W)` in the layout below was always asking for.
+fn right_pane_width(total: u16, left_w: u16) -> u16 {
+    // u32 so the multiply can't overflow on an absurd reported width.
+    let target = (u32::from(total) * RIGHT_PANE_TENTHS / 10) as u16;
+    let target = target.clamp(RIGHT_PANE_MIN_W, RIGHT_PANE_MAX_W);
+    let budget = total.saturating_sub(left_w).saturating_sub(MIN_BODY_W);
+    target.min(budget)
+}
 
 const DIALOG_H: u16 = 8;
 const DIALOG_MIN_W: u16 = 40;
@@ -63,7 +87,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let show_left = app.prefs.layout.left;
     let show_right = app.prefs.layout.right;
     let left_w = if show_left { LEFT_PANE_W } else { 0 };
-    let right_w = if show_right { RIGHT_PANE_W } else { 0 };
+    let right_w = if show_right {
+        right_pane_width(body_area.width, left_w)
+    } else {
+        0
+    };
 
     let constraints = match (show_left, show_right) {
         (true, true) => vec![
@@ -234,7 +262,76 @@ pub(crate) fn keep_cursor_visible(
 
 #[cfg(test)]
 mod tests {
-    use super::keep_cursor_visible;
+    use super::{
+        LEFT_PANE_W, MIN_BODY_W, RIGHT_PANE_MAX_W, RIGHT_PANE_MIN_W, keep_cursor_visible,
+        right_pane_width,
+    };
+
+    #[test]
+    fn detail_pane_keeps_its_historical_width_on_a_100_column_terminal() {
+        // The width the pane had as a fixed constant; pinned so the reference
+        // renders (and the snapshot suite, which draws at 100 columns) don't
+        // shift under this change.
+        assert_eq!(right_pane_width(100, LEFT_PANE_W), 34);
+        assert_eq!(right_pane_width(100, 0), 34);
+    }
+
+    #[test]
+    fn detail_pane_grows_with_the_terminal() {
+        assert_eq!(right_pane_width(120, 0), 36);
+        assert_eq!(right_pane_width(160, 0), 48);
+        assert_eq!(right_pane_width(200, 0), 60);
+    }
+
+    #[test]
+    fn detail_pane_never_narrower_than_the_old_constant_when_there_is_room() {
+        // Wherever the old fixed 34 actually fit alongside a full-width list
+        // (34 + MIN_BODY_W = 74 columns), the pane is still at least that wide.
+        for total in [74u16, 80, 90, 100, 140, 300] {
+            assert!(
+                right_pane_width(total, 0) >= RIGHT_PANE_MIN_W,
+                "{total} columns regressed below the old fixed width"
+            );
+        }
+    }
+
+    #[test]
+    fn below_74_columns_the_pane_yields_instead_of_squeezing_the_list() {
+        // A deliberate change from the fixed-width behaviour: at 60 columns the
+        // old constant took 34 and left the task list 26, under its stated
+        // minimum. Now the list keeps its 40 and the pane takes what's left.
+        assert_eq!(right_pane_width(60, 0), 20);
+        assert_eq!(60 - 20, MIN_BODY_W);
+    }
+
+    #[test]
+    fn detail_pane_is_capped_so_the_task_list_keeps_its_minimum() {
+        // Both sidebars on at 80 columns: 26 + 40 leaves only 14 for detail.
+        assert_eq!(right_pane_width(80, LEFT_PANE_W), 14);
+        // Whatever the width, the list never drops below MIN_BODY_W.
+        for total in 40u16..=300 {
+            for left_w in [0, LEFT_PANE_W] {
+                let right = right_pane_width(total, left_w);
+                let body = total.saturating_sub(left_w).saturating_sub(right);
+                assert!(
+                    body >= MIN_BODY_W || right == 0,
+                    "{total} cols / left {left_w}: body {body} < {MIN_BODY_W}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn detail_pane_stops_growing_at_the_cap() {
+        assert_eq!(right_pane_width(1000, 0), RIGHT_PANE_MAX_W);
+    }
+
+    #[test]
+    fn detail_pane_collapses_rather_than_starving_a_tiny_terminal() {
+        // Not enough room for the list alone: the pane yields entirely.
+        assert_eq!(right_pane_width(40, 0), 0);
+        assert_eq!(right_pane_width(20, LEFT_PANE_W), 0);
+    }
 
     #[test]
     fn no_scroll_when_content_fits() {

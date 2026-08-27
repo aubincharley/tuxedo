@@ -2159,6 +2159,22 @@ mod tests {
     }
 
     #[test]
+    fn detail_pane_tracks_the_cursor_in_every_view() {
+        let mut app = build_app_with_archive("(A) one\n(B) two\n", None);
+        app.cursor = 1;
+        assert_eq!(app.cur_task().map(|t| t.raw.as_str()), Some("(B) two"));
+
+        apply_action(&mut app, Action::Delete);
+        apply_action(&mut app, Action::ToggleTrashView);
+        app.cursor = 0;
+        assert_eq!(
+            app.cur_task().map(|t| t.raw.as_str()),
+            Some("(B) two"),
+            "the detail pane must resolve against the trash list in Trash view"
+        );
+    }
+
+    #[test]
     fn trash_actions_are_refused_in_the_archive_view() {
         let mut app = build_app_with_archive("(A) one\n", Some("x 2026-05-01 2026-04-01 old\n"));
         apply_action(&mut app, Action::ToggleArchiveView);

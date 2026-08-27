@@ -1,11 +1,7 @@
-(C) 2026-05-07 Calendar week strip view with reschedule keys +tuxedo @dev due:2026-07-29
-(B) 2026-05-07 Hook scripts for pre and post add complete and delete events +tuxedo @dev due:2026-07-30
-(B) 2026-05-11 Natural-language relative dates in due and threshold fields tomorrow fri plus3d eom +tuxedo @dev due:2026-08-03
-(B) 2026-05-11 Snooze and postpone keys to bump due by day week month with bulk support +tuxedo @dev due:2026-08-18
-(C) 2026-05-11 Multi-file workspace config and quick file switcher +tuxedo @dev
-(C) 2026-05-11 Inbox capture mode and separate triage review mode +tuxedo @dev
-(C) 2026-05-11 Repeat-last-action dot key and saved filter marks +tuxedo @dev
-2026-05-13 Implement `tuxedo doctor` to lint malformed date, formats, etc
-2026-08-24 aefjknafen
-2026-08-24 eakflaelgfealf`
-2026-08-24 aejfnaef
+(A) 2026-08-25 add eval scripts to the agentic repo +work
+(A) 2026-08-25 add the reports to the drive +work
+(A) 2026-08-25 change the worklist behavior - more flexibility
+2026-08-25 Problems: agent tooks a lot of time before acting and ends by a failure
+2026-08-25 fails to recognize the best serie
+2026-08-25 doesnt propose the verdict
+2026-08-26 affichage des volumes - diamètres au follow up
